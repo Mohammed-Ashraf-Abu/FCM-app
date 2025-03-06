@@ -1,113 +1,115 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
+import React, {useEffect} from 'react';
 import {
+  PermissionsAndroid,
+  Platform,
+  Alert,
   SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
   View,
+  Button,
+  Linking,
 } from 'react-native';
-
 import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+  AuthorizationStatus,
+  getMessaging,
+  getToken,
+  onMessage,
+} from '@react-native-firebase/messaging';
+import {addPost, fetchUser} from './src/api';
 
-function Section({ children, title }) {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
+const App = () => {
+  // Handle foreground messages
+  const messaging = getMessaging();
+  onMessage(messaging, remoteMessage => {
+    console.log('FCM Message Data:', remoteMessage);
+    Alert.alert(
+      remoteMessage.notification.title,
+      remoteMessage.notification.body,
+    );
+  });
+
+  function promptForPermission() {
+    Alert.alert(
+      'Enable Notifications',
+      'Notifications are disabled. Please enable them in settings.',
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Open Settings',
+          onPress: () => {
+            Linking.openSettings(); // Open app settings
           },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
+        },
+      ],
+    );
+  }
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+  const requestUserPermission = async () => {
+    try {
+      // if (Platform.OS === 'android') {
+      //   const granted = await PermissionsAndroid.request(
+      //     PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+      //   );
+      //   console.log(granted, '------------');
+      //   if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+      //     console.warn('Notification permission denied');
+      //     promptForPermission();
+      //   } else {
+      //     console.log('Notification permission granted');
+      //   }
+      // } else if (Platform.OS === 'ios') {
+      const authStatus = await getMessaging().requestPermission();
+      const enabled =
+        authStatus === AuthorizationStatus.AUTHORIZED ||
+        authStatus === AuthorizationStatus.PROVISIONAL;
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+      if (!enabled) {
+        console.warn('Notification permission denied');
+      } else {
+        console.log('Notification permission granted');
+      }
+      // }
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+    }
   };
 
+  const getFcmToken = async () => {
+    try {
+      const messaging = getMessaging();
+      const token = await getToken(messaging);
+      console.log('FCM Token:', token);
+    } catch (error) {
+      console.error('Failed to get FCM token:', error);
+    }
+  };
+
+  const setBackgroundMessageHandler = () => {
+    getMessaging().setBackgroundMessageHandler(async remoteMessage => {
+      console.log('📩 Message handled in the background:', remoteMessage);
+      addPost(remoteMessage);
+    });
+  };
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        await requestUserPermission();
+        await getFcmToken();
+        setBackgroundMessageHandler();
+      } catch (error) {
+        console.error('Error during initialization:', error);
+      }
+    };
+
+    initialize(); // Call the async function
+  }, []);
+
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.js</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
+    <SafeAreaView style={[{flex: 1}]}>
+      <View>
+        <Button title="Click" onPress={() => console.log('Pressed')} />
+      </View>
     </SafeAreaView>
   );
-}
-
-const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
-  },
-});
+};
 
 export default App;
